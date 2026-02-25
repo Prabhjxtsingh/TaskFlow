@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TaskFlow - Monochrome Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class', // Enable class-based dark mode
+            theme: {
+                extend: {
+                    animation: {
+                        'fade-up': 'fadeUp 0.5s ease-out forwards',
+                        'pulse-fast': 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        fadeUp: {
+                            '0%': { opacity: '0', transform: 'translateY(20px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        /* Custom monochrome scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+        .dark ::-webkit-scrollbar-thumb { background: #374151; }
+        .dark ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+        
+        body { font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif; }
+        
+        /* Smooth theme transition */
+        *, *::before, *::after { transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease; }
+        
+        /* Kanban specific styles */
+        .kanban-col-container { transition: background-color 0.3s, border-color 0.3s; }
+        .drag-over { background-color: #f3f4f6 !important; border-color: #000000 !important; border-style: dashed !important; }
+        .dark .drag-over { background-color: #1f2937 !important; border-color: #ffffff !important; }
+        
+        .task-card { transition: transform 0.1s, box-shadow 0.2s, background-color 0.3s, border-color 0.3s; cursor: grab; }
+        .task-card:active { cursor: grabbing; }
+        .task-card.dragging { opacity: 0.6; transform: scale(0.98); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+
+        #sidebar { transition: transform 0.3s ease-in-out; }
+        
+        /* Utility for animation delays */
+        .delay-100 { animation-delay: 100ms; }
+        .delay-200 { animation-delay: 200ms; }
+        .delay-300 { animation-delay: 300ms; }
+    </style>
+</head>
+<body class="h-screen flex overflow-hidden text-gray-900 dark:text-gray-100 bg-white dark:bg-[#0a0a0a]">
+
+    <!-- 1. LOADING SCREEN -->
+    <div id="loader" class="fixed inset-0 z-[100] bg-black dark:bg-white flex flex-col items-center justify-center transition-opacity duration-700">
+        <div class="bg-white dark:bg-black p-4 rounded-2xl shadow-2xl animate-bounce mb-4 text-black dark:text-white">
+            <i class="ph-bold ph-kanban text-4xl"></i>
+        </div>
+        <h1 class="text-white dark:text-black text-2xl font-bold tracking-widest animate-pulse">TASKFLOW</h1>
+    </div>
+
+    <!-- 2. LOGIN LAYOUT -->
+    <div id="login-layout" class="fixed inset-0 z-50 bg-gray-50 dark:bg-[#0a0a0a] flex items-center justify-center p-4 transition-opacity duration-500 hidden opacity-0">
+        <div class="w-full max-w-md bg-white dark:bg-black rounded-3xl shadow-xl border border-gray-200 dark:border-gray-800 p-8 animate-fade-up">
+            <div class="text-center mb-8">
+                <div class="inline-flex items-center justify-center bg-gray-100 dark:bg-gray-900 p-3 rounded-xl mb-4 text-black dark:text-white">
+                    <i class="ph-bold ph-kanban text-3xl"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Welcome Back</h2>
+                <p class="text-gray-500 dark:text-gray-400 mt-2 text-sm">Sign in to manage your tasks and projects.</p>
+            </div>
+            
+            <form onsubmit="handleLogin(event)" class="space-y-5">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email Address</label>
+                    <div class="relative">
+                        <i class="ph-fill ph-envelope absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                        <input type="email" required value="alex@taskflow.inc" class="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all text-gray-900 dark:text-white placeholder-gray-400">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
+                    <div class="relative">
+                        <i class="ph-fill ph-lock-key absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                        <input type="password" required value="password123" class="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all text-gray-900 dark:text-white placeholder-gray-400">
+                    </div>
+                </div>
+                <button type="submit" class="w-full bg-black dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-200 text-white dark:text-black font-semibold py-3 rounded-xl transition-all hover:shadow-lg hover:-translate-y-0.5 flex items-center justify-center gap-2">
+                    Sign In <i class="ph-bold ph-arrow-right"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 3. MAIN APP LAYOUT (Hidden Initially) -->
+    <div id="app-layout" class="flex-1 flex h-screen w-full hidden opacity-0 transition-opacity duration-500">
+        
+        <!-- Mobile Overlay -->
+        <div id="mobile-overlay" class="fixed inset-0 bg-black/50 z-20 hidden md:hidden backdrop-blur-sm transition-opacity" onclick="toggleSidebar()"></div>
+
+        <!-- Sidebar Navigation -->
+        <aside id="sidebar" class="bg-gray-50 dark:bg-[#0a0a0a] text-gray-600 dark:text-gray-400 w-64 flex flex-col fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 z-30 shadow-xl border-r border-gray-200 dark:border-gray-800">
+            <!-- Logo -->
+            <div class="h-16 flex items-center px-6 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-black">
+                <div class="flex items-center gap-3 text-black dark:text-white">
+                    <div class="bg-black dark:bg-white text-white dark:text-black p-1.5 rounded-lg shadow-sm">
+                        <i class="ph-bold ph-kanban text-xl"></i>
+                    </div>
+                    <h1 class="text-xl font-bold tracking-tight">TaskFlow</h1>
+                </div>
+                <button class="ml-auto md:hidden text-gray-400 hover:text-black dark:hover:text-white" onclick="toggleSidebar()">
+                    <i class="ph-bold ph-x text-xl"></i>
+                </button>
+            </div>
+
+            <!-- Nav Links -->
+            <nav class="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
+                <button onclick="navigate('dashboard')" id="nav-dashboard" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-200 font-medium bg-black text-white dark:bg-white dark:text-black shadow-md">
+                    <i class="ph-bold ph-squares-four text-lg"></i> Dashboard
+                </button>
+                <button onclick="navigate('kanban')" id="nav-kanban" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-200 font-medium hover:bg-gray-200 hover:text-black dark:hover:bg-gray-800 dark:hover:text-white">
+                    <i class="ph-bold ph-columns text-lg"></i> Kanban Board
+                </button>
+                <button onclick="navigate('settings')" id="nav-settings" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-200 font-medium hover:bg-gray-200 hover:text-black dark:hover:bg-gray-800 dark:hover:text-white">
+                    <i class="ph-bold ph-gear text-lg"></i> Settings
+                </button>
+            </nav>
+
+            <div class="p-4 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-black">
+                <div class="flex items-center gap-3">
+                    <img src="https://api.dicebear.com/7.x/notionists/svg?seed=Felix" alt="User" class="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 grayscale">
+                    <div class="flex-1 min-w-0">
+                        <p id="sidebar-name" class="text-sm font-medium text-gray-900 dark:text-white truncate">Alex Designer</p>
+                        <p id="sidebar-email" class="text-xs text-gray-500 truncate">alex@taskflow.inc</p>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <div class="flex-1 flex flex-col h-screen min-w-0 overflow-hidden bg-gray-100 dark:bg-[#111]">
+            
+            <!-- Top Header -->
+            <header class="h-16 bg-white dark:bg-black border-b border-gray-200 dark:border-gray-800 px-4 sm:px-6 flex justify-between items-center shrink-0 z-10 shadow-sm transition-colors">
+                <div class="flex items-center gap-4">
+                    <button class="md:hidden text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white" onclick="toggleSidebar()">
+                        <i class="ph-bold ph-list text-2xl"></i>
+                    </button>
+                    
+                    <div class="hidden sm:flex items-center bg-gray-50 dark:bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800 focus-within:border-black dark:focus-within:border-white focus-within:ring-2 focus-within:ring-gray-200 dark:focus-within:ring-gray-800 transition-all w-64 md:w-80">
+                        <i class="ph-bold ph-magnifying-glass text-gray-400"></i>
+                        <input type="text" placeholder="Search tasks..." class="bg-transparent border-none outline-none px-2 text-sm w-full text-gray-900 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500">
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 sm:gap-4">
+                    <!-- Day/Night Switch -->
+                    <button onclick="toggleTheme()" class="text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title="Toggle Dark Mode">
+                        <i id="theme-icon" class="ph-bold ph-moon text-xl transition-transform duration-300"></i>
+                    </button>
+
+                    <!-- Notifications -->
+                    <div class="relative" id="notif-container">
+                        <button onclick="toggleNotifications()" class="relative text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                            <i class="ph-bold ph-bell text-xl"></i>
+                            <span id="notif-badge" class="absolute top-1.5 right-1.5 w-2 h-2 bg-black dark:bg-white rounded-full border-2 border-white dark:border-black transition-opacity"></span>
+                        </button>
+                        
+                        <!-- Notification Dropdown -->
+                        <div id="notif-dropdown" class="absolute right-0 mt-2 w-80 bg-white dark:bg-[#0a0a0a] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-xl hidden opacity-0 transition-opacity z-50 overflow-hidden origin-top-right">
+                            <div class="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center bg-gray-50 dark:bg-[#111]">
+                                <h3 class="font-bold text-gray-900 dark:text-white">Notifications</h3>
+                                <button onclick="clearNotifications()" class="text-xs font-medium text-gray-500 hover:text-black dark:hover:text-white transition-colors">Clear All</button>
+                            </div>
+                            <div id="notif-list" class="max-h-80 overflow-y-auto p-2">
+                                <!-- Notifications dynamically injected here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="h-8 w-px bg-gray-200 dark:bg-gray-800 hidden sm:block"></div>
+                    <button onclick="openModal()" class="bg-black hover:bg-gray-800 dark:bg-white dark:hover:bg-gray-200 text-white dark:text-black px-4 py-2 rounded-lg font-medium transition-transform active:scale-95 flex items-center gap-2 shadow-sm text-sm">
+                        <i class="ph-bold ph-plus"></i> <span class="hidden sm:inline">New Task</span>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Dynamic Pages Container -->
+            <main class="flex-1 overflow-auto relative">
+                
+                <!-- PAGE: DASHBOARD -->
+                <section id="page-dashboard" class="page-section p-4 sm:p-6 lg:p-8 block">
+                    <div class="mb-6 animate-fade-up">
+                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Welcome back, Alex! 👋</h2>
+                        <p class="text-gray-500 dark:text-gray-400 mt-1">Here is what's happening with your projects today.</p>
+                    </div>
+
+                    <!-- Stats Grid -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                        <div class="bg-white dark:bg-black p-5 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 flex items-center gap-4 animate-fade-up delay-100 hover:shadow-md transition-shadow">
+                            <div class="w-12 h-12 rounded-xl bg-black dark:bg-white text-white dark:text-black flex items-center justify-center text-2xl">
+                                <i class="ph-fill ph-files"></i>
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Tasks</p>
+                                <h3 class="text-2xl font-bold text-gray-900 dark:text-white" id="dash-stat-total">0</h3>
+                            </div>
+                        </div>
+                        <div class="bg-white dark:bg-black p-5 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 flex items-center gap-4 animate-fade-up delay-200 hover:shadow-md transition-shadow">
+                            <div class="w-12 h-12 rounded-xl bg-gray-200 dark:bg-gray-800 text-black dark:text-white flex items-center justify-center text-2xl">
+                                <i class="ph-fill ph-clock"></i>
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">In Progress</p>
+                                <h3 class="text-2xl font-bold text-gray-900 dark:text-white" id="dash-stat-progress">0</h3>
+                            </div>
+                        </div>
+                        <div class="bg-white dark:bg-black p-5 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 flex items-center gap-4 animate-fade-up delay-300 hover:shadow-md transition-shadow">
+                            <div class="w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-900 text-black dark:text-white flex items-center justify-center text-2xl border border-gray-200 dark:border-gray-700">
+                                <i class="ph-fill ph-check-circle"></i>
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Completed</p>
+                                <h3 class="text-2xl font-bold text-gray-900 dark:text-white" id="dash-stat-done">0</h3>
+                            </div>
+                        </div>
+                        <div class="bg-white dark:bg-black p-5 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 flex items-center gap-4 animate-fade-up hover:shadow-md transition-shadow" style="animation-delay: 400ms;">
+                            <div class="w-12 h-12 rounded-xl bg-gray-800 dark:bg-gray-200 text-white dark:text-black flex items-center justify-center text-2xl">
+                                <i class="ph-fill ph-warning-circle"></i>
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">High Priority</p>
+                                <h3 class="text-2xl font-bold text-gray-900 dark:text-white" id="dash-stat-high">0</h3>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Tasks & Activity -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-up" style="animation-delay: 500ms;">
+                        <div class="lg:col-span-2 bg-white dark:bg-black rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-6">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-lg font-bold text-gray-900 dark:text-white">Recent Tasks</h3>
+                                <button onclick="navigate('kanban')" class="text-sm text-gray-900 dark:text-white hover:text-gray-600 dark:hover:text-gray-300 font-medium transition-colors underline decoration-gray-300 dark:decoration-gray-700 underline-offset-4">View Board &rarr;</button>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-sm whitespace-nowrap">
+                                    <thead class="text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-800">
+                                        <tr>
+                                            <th class="pb-3 font-medium">Task Name</th>
+                                            <th class="pb-3 font-medium">Status</th>
+                                            <th class="pb-3 font-medium">Priority</th>
+                                            <th class="pb-3 font-medium">Deadline</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="dash-recent-tasks" class="divide-y divide-gray-100 dark:divide-gray-800/50">
+                                        <!-- Injected via JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <!-- Quick Actions -->
+                        <div class="bg-white dark:bg-black rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-6">
+                            <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4">Quick Actions</h3>
+                            <div class="space-y-3">
+                                <button onclick="openModal()" class="w-full flex items-center gap-3 p-3 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-black dark:hover:border-white hover:bg-gray-50 dark:hover:bg-gray-900 transition-all text-left group">
+                                    <div class="bg-gray-100 dark:bg-gray-800 group-hover:bg-black dark:group-hover:bg-white text-gray-600 dark:text-gray-300 group-hover:text-white dark:group-hover:text-black p-2 rounded-lg transition-colors">
+                                        <i class="ph-bold ph-plus"></i>
+                                    </div>
+                                    <div>
+                                        <p class="font-semibold text-gray-900 dark:text-white text-sm">Create New Task</p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">Add a task to the To Do column</p>
+                                    </div>
+                                </button>
+                                <button onclick="navigate('settings')" class="w-full flex items-center gap-3 p-3 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-black dark:hover:border-white hover:bg-gray-50 dark:hover:bg-gray-900 transition-all text-left group">
+                                    <div class="bg-gray-100 dark:bg-gray-800 group-hover:bg-black dark:group-hover:bg-white text-gray-600 dark:text-gray-300 group-hover:text-white dark:group-hover:text-black p-2 rounded-lg transition-colors">
+                                        <i class="ph-bold ph-user-circle"></i>
+                                    </div>
+                                    <div>
+                                        <p class="font-semibold text-gray-900 dark:text-white text-sm">Update Profile</p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">Change your avatar or settings</p>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- PAGE: KANBAN BOARD -->
+                <section id="page-kanban" class="page-section hidden p-4 sm:p-6 h-full flex flex-col">
+                    <div class="mb-4 flex justify-between items-end shrink-0 animate-fade-up">
+                        <div>
+                            <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Kanban Board</h2>
+                            <p class="text-gray-500 dark:text-gray-400 mt-1 text-sm">Drag and drop tasks across columns.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="flex-1 overflow-x-auto overflow-y-hidden pb-4">
+                        <div class="flex gap-4 sm:gap-6 h-full min-w-max items-start">
+                            <!-- To Do Column -->
+                            <div class="bg-gray-50/50 dark:bg-[#151515] rounded-2xl w-[300px] sm:w-[340px] max-h-full flex flex-col border border-gray-200 dark:border-gray-800 shadow-sm kanban-col-container shrink-0 animate-fade-up delay-100" data-status="todo">
+                                <div class="p-4 flex justify-between items-center border-b border-gray-200 dark:border-gray-800 shrink-0">
+                                    <h2 class="font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                                        <div class="w-2.5 h-2.5 rounded-full bg-gray-400 dark:bg-gray-600"></div> To Do
+                                    </h2>
+                                    <span class="bg-gray-200 dark:bg-gray-800 text-gray-800 dark:text-gray-200 text-xs px-2.5 py-1 rounded-full font-bold shadow-inner" id="count-todo">0</span>
+                                </div>
+                                <div class="kanban-col flex-1 overflow-y-auto p-3 space-y-3 min-h-[150px]" id="col-todo"></div>
+                            </div>
+
+                            <!-- In Progress Column -->
+                            <div class="bg-gray-50/50 dark:bg-[#151515] rounded-2xl w-[300px] sm:w-[340px] max-h-full flex flex-col border border-gray-200 dark:border-gray-800 shadow-sm kanban-col-container shrink-0 animate-fade-up delay-200" data-status="inprogress">
+                                <div class="p-4 flex justify-between items-center border-b border-gray-200 dark:border-gray-800 shrink-0">
+                                    <h2 class="font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                                        <div class="w-2.5 h-2.5 rounded-full bg-gray-600 dark:bg-gray-400"></div> In Progress
+                                    </h2>
+                                    <span class="bg-gray-200 dark:bg-gray-800 text-gray-800 dark:text-gray-200 text-xs px-2.5 py-1 rounded-full font-bold shadow-inner" id="count-inprogress">0</span>
+                                </div>
+                                <div class="kanban-col flex-1 overflow-y-auto p-3 space-y-3 min-h-[150px]" id="col-inprogress"></div>
+                            </div>
+
+                            <!-- Done Column -->
+                            <div class="bg-gray-50/50 dark:bg-[#151515] rounded-2xl w-[300px] sm:w-[340px] max-h-full flex flex-col border border-gray-200 dark:border-gray-800 shadow-sm kanban-col-container shrink-0 animate-fade-up delay-300" data-status="done">
+                                <div class="p-4 flex justify-between items-center border-b border-gray-200 dark:border-gray-800 shrink-0">
+                                    <h2 class="font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                                        <div class="w-2.5 h-2.5 rounded-full bg-black dark:bg-white shadow-[0_0_8px_rgba(0,0,0,0.3)] dark:shadow-[0_0_8px_rgba(255,255,255,0.3)]"></div> Done
+                                    </h2>
+                                    <span class="bg-gray-200 dark:bg-gray-800 text-gray-800 dark:text-gray-200 text-xs px-2.5 py-1 rounded-full font-bold shadow-inner" id="count-done">0</span>
+                                </div>
+                                <div class="kanban-col flex-1 overflow-y-auto p-3 space-y-3 min-h-[150px]" id="col-done"></div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- PAGE: SETTINGS -->
+                <section id="page-settings" class="page-section hidden p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto w-full">
+                    <div class="mb-6 animate-fade-up">
+                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Settings</h2>
+                        <p class="text-gray-500 dark:text-gray-400 mt-1">Manage your account and preferences.</p>
+                    </div>
+
+                    <div class="bg-white dark:bg-black rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden animate-fade-up delay-100">
+                        <div class="p-6 border-b border-gray-200 dark:border-gray-800">
+                            <h3 class="text-lg font-bold text-gray-800 dark:text-white mb-4">Profile Information</h3>
+                            <div class="flex flex-col sm:flex-row gap-6 items-start sm:items-center">
+                                <img src="https://api.dicebear.com/7.x/notionists/svg?seed=Felix" alt="User" class="w-24 h-24 rounded-full bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-sm grayscale">
+                                <div class="space-y-3 flex-1 w-full">
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Name</label>
+                                            <input type="text" id="settings-name" value="Alex Designer" class="w-full border border-gray-300 dark:border-gray-700 bg-transparent dark:bg-gray-900 rounded-lg px-4 py-2 focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all text-gray-800 dark:text-white">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email Address</label>
+                                            <input type="email" id="settings-email" value="alex@taskflow.inc" class="w-full border border-gray-300 dark:border-gray-700 bg-transparent dark:bg-gray-900 rounded-lg px-4 py-2 focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all text-gray-800 dark:text-white">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="p-6 border-b border-gray-200 dark:border-gray-800">
+                            <h3 class="text-lg font-bold text-gray-800 dark:text-white mb-4">Preferences</h3>
+                            <div class="space-y-4">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="font-medium text-gray-800 dark:text-gray-200">Email Notifications</p>
+                                        <p class="text-sm text-gray-500 dark:text-gray-400">Receive an email when a task approaches its deadline.</p>
+                                    </div>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" id="settings-notif-toggle" class="sr-only peer" checked>
+                                        <div class="w-11 h-6 bg-gray-300 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-gray-400 dark:peer-focus:ring-gray-600 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-black dark:peer-checked:bg-white"></div>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="p-6 bg-gray-50 dark:bg-[#0a0a0a] flex justify-end gap-3">
+                            <button onclick="loadSettings()" class="px-5 py-2.5 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-white dark:hover:bg-gray-900 font-medium transition-colors">Discard</button>
+                            <button id="save-settings-btn" onclick="saveSettings()" class="px-5 py-2.5 bg-black dark:bg-white text-white dark:text-black rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 font-medium transition-all shadow-sm border border-black dark:border-white w-40">Save Changes</button>
+                        </div>
+                    </div>
+                </section>
+
+            </main>
+        </div>
+    </div> <!-- End App Layout -->
+
+    <!-- Task Modal (Add/Edit) -->
+    <div id="task-modal" class="fixed inset-0 bg-black/60 dark:bg-black/80 hidden items-center justify-center z-50 p-4 backdrop-blur-sm transition-opacity opacity-0">
+        <div class="bg-white dark:bg-black rounded-2xl shadow-xl border border-gray-200 dark:border-gray-800 w-full max-w-md overflow-hidden transform scale-95 transition-all duration-300" id="task-modal-content">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-gray-50 dark:bg-[#0a0a0a]">
+                <h3 class="text-lg font-bold text-gray-800 dark:text-white" id="modal-title">Add New Task</h3>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800 p-1.5 rounded-lg transition-colors">
+                    <i class="ph-bold ph-x text-lg"></i>
+                </button>
+            </div>
+            <form id="task-form" class="p-6 space-y-4" onsubmit="handleFormSubmit(event)">
+                <input type="hidden" id="task-id">
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Task Title <span class="text-gray-500">*</span></label>
+                    <input type="text" id="task-title" required class="w-full border border-gray-300 dark:border-gray-700 bg-transparent dark:bg-gray-900 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" placeholder="E.g., Design homepage UI">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                    <textarea id="task-desc" rows="3" class="w-full border border-gray-300 dark:border-gray-700 bg-transparent dark:bg-gray-900 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all resize-none text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" placeholder="Add details about this task..."></textarea>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Priority</label>
+                        <select id="task-priority" class="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all text-gray-800 dark:text-white">
+                            <option value="low">Low</option>
+                            <option value="medium" selected>Medium</option>
+                            <option value="high">High</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Deadline</label>
+                        <input type="date" id="task-deadline" class="w-full border border-gray-300 dark:border-gray-700 bg-transparent dark:bg-gray-900 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-black dark:focus:ring-white outline-none transition-all text-gray-800 dark:text-white dark:[color-scheme:dark]">
+                    </div>
+                </div>
+
+                <div class="pt-4 flex gap-3">
+                    <button type="button" onclick="closeModal()" class="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 font-medium transition-colors">Cancel</button>
+                    <button type="submit" class="flex-1 px-4 py-2.5 bg-black dark:bg-white text-white dark:text-black rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 font-medium transition-colors shadow-sm border border-black dark:border-white">Save Task</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Application Script -->
+    <script>
+        // --- State Management ---
+        let tasks = [
+            { id: '1', title: 'Research competitors', desc: 'Analyze top 3 competitors in the market.', status: 'todo', priority: 'medium', deadline: '2026-03-01' },
+            { id: '2', title: 'Draft system architecture', desc: 'Create initial diagrams for the backend services.', status: 'inprogress', priority: 'high', deadline: '2026-02-28' },
+            { id: '3', title: 'Setup project repo', desc: 'Initialize Git and add initial configurations.', status: 'done', priority: 'low', deadline: '2026-02-20' },
+            { id: '4', title: 'Design landing page', desc: 'Figma prototypes for desktop and mobile.', status: 'todo', priority: 'high', deadline: '2026-03-05' },
+            { id: '5', title: 'Write API Documentation', desc: 'Document endpoints in Swagger.', status: 'inprogress', priority: 'medium', deadline: '2026-03-10' }
+        ];
+
+        let userProfile = {
+            name: 'Alex Designer',
+            email: 'alex@taskflow.inc',
+            emailNotifications: true
+        };
+
+        let notifications = [
+            { id: Date.now(), text: "Welcome to TaskFlow! Your dashboard is ready.", time: "Just now", read: false }
+        ];
+
+        const statuses = ['todo', 'inprogress', 'done'];
+        
+        // --- Initialization & Flow ---
+        document.addEventListener('DOMContentLoaded', () => {
+            // Min date for forms
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('task-deadline').setAttribute('min', today);
+            
+            // Initialize Settings & Notifications
+            loadSettings();
+            renderNotifications();
+
+            // Handle outside click for notifications
+            document.addEventListener('click', (e) => {
+                const container = document.getElementById('notif-container');
+                const dropdown = document.getElementById('notif-dropdown');
+                if (container && !container.contains(e.target) && !dropdown.classList.contains('hidden')) {
+                    dropdown.classList.add('opacity-0');
+                    setTimeout(() => dropdown.classList.add('hidden'), 300);
+                }
+            });
+
+            // Handle Loading Screen flow
+            setTimeout(() => {
+                const loader = document.getElementById('loader');
+                loader.classList.add('opacity-0');
+                
+                setTimeout(() => {
+                    loader.classList.add('hidden');
+                    // Show Login
+                    const login = document.getElementById('login-layout');
+                    login.classList.remove('hidden');
+                    setTimeout(() => login.classList.remove('opacity-0'), 50);
+                }, 700);
+            }, 1500); // 1.5s simulated loading
+        });
+
+        // --- Auth flow ---
+        function handleLogin(e) {
+            e.preventDefault();
+            const login = document.getElementById('login-layout');
+            const app = document.getElementById('app-layout');
+            
+            login.classList.add('opacity-0');
+            setTimeout(() => {
+                login.classList.add('hidden');
+                app.classList.remove('hidden');
+                
+                // Initialize Data
+                renderBoard();
+                renderDashboard();
+                setupDragAndDrop();
+                
+                setTimeout(() => app.classList.remove('opacity-0'), 50);
+            }, 500);
+        }
+
+        // --- Theme (Dark/Light) Toggle ---
+        function toggleTheme() {
+            const html = document.documentElement;
+            html.classList.toggle('dark');
+            
+            const icon = document.getElementById('theme-icon');
+            if (html.classList.contains('dark')) {
+                icon.classList.remove('ph-moon');
+                icon.classList.add('ph-sun');
+                icon.style.transform = 'rotate(180deg)';
+            } else {
+                icon.classList.remove('ph-sun');
+                icon.classList.add('ph-moon');
+                icon.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        // --- Routing / Multi-page Logic ---
+        function navigate(pageId) {
+            document.querySelectorAll('.page-section').forEach(el => {
+                el.classList.add('hidden');
+                el.classList.remove('block');
+                // Retrigger animations
+                const animatedElements = el.querySelectorAll('.animate-fade-up');
+                animatedElements.forEach(animEl => {
+                    animEl.style.animation = 'none';
+                    animEl.offsetHeight; /* trigger reflow */
+                    animEl.style.animation = null; 
+                });
+            });
+            
+            const target = document.getElementById(`page-${pageId}`);
+            target.classList.remove('hidden');
+            target.classList.add('block');
+
+            // Update sidebar nav styling for monochrome
+            document.querySelectorAll('aside nav button').forEach(btn => {
+                btn.classList.remove('bg-black', 'text-white', 'dark:bg-white', 'dark:text-black', 'shadow-md');
+                btn.classList.add('hover:bg-gray-200', 'hover:text-black', 'dark:hover:bg-gray-800', 'dark:hover:text-white');
+            });
+            const activeNav = document.getElementById(`nav-${pageId}`);
+            activeNav.classList.remove('hover:bg-gray-200', 'hover:text-black', 'dark:hover:bg-gray-800', 'dark:hover:text-white');
+            activeNav.classList.add('bg-black', 'text-white', 'dark:bg-white', 'dark:text-black', 'shadow-md');
+
+            if(window.innerWidth < 768) toggleSidebar();
+            if(pageId === 'dashboard') renderDashboard();
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('mobile-overlay');
+            
+            if (sidebar.classList.contains('-translate-x-full')) {
+                sidebar.classList.remove('-translate-x-full');
+                overlay.classList.remove('hidden');
+                setTimeout(() => overlay.classList.remove('opacity-0'), 10);
+            } else {
+                sidebar.classList.add('-translate-x-full');
+                overlay.classList.add('opacity-0');
+                setTimeout(() => overlay.classList.add('hidden'), 300);
+            }
+        }
+
+        // --- Dashboard Render Logic ---
+        function renderDashboard() {
+            document.getElementById('dash-stat-total').innerText = tasks.length;
+            document.getElementById('dash-stat-progress').innerText = tasks.filter(t => t.status === 'inprogress').length;
+            document.getElementById('dash-stat-done').innerText = tasks.filter(t => t.status === 'done').length;
+            document.getElementById('dash-stat-high').innerText = tasks.filter(t => t.priority === 'high').length;
+
+            const tbody = document.getElementById('dash-recent-tasks');
+            tbody.innerHTML = '';
+            
+            const recentTasks = [...tasks].reverse().slice(0, 4);
+            
+            if (recentTasks.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="py-4 text-center text-gray-500 dark:text-gray-400">No tasks found. Create one to get started!</td></tr>`;
+                return;
+            }
+
+            recentTasks.forEach(task => {
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-gray-100 dark:border-gray-800/50 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors';
+                
+                // Monochrome status colors
+                const statusColors = {
+                    'todo': 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700',
+                    'inprogress': 'bg-gray-200 dark:bg-gray-700 text-black dark:text-white',
+                    'done': 'bg-black dark:bg-white text-white dark:text-black'
+                };
+                const statusLabels = { 'todo': 'To Do', 'inprogress': 'In Progress', 'done': 'Done' };
+                
+                // Monochrome priority colors
+                const priorityColors = {
+                    'low': 'text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800',
+                    'medium': 'text-black dark:text-white bg-gray-200 dark:bg-gray-700',
+                    'high': 'text-white dark:text-black bg-black dark:bg-white'
+                };
+
+                tr.innerHTML = `
+                    <td class="py-3 pr-4 font-medium text-gray-900 dark:text-gray-100">${escapeHTML(task.title)}</td>
+                    <td class="py-3 pr-4"><span class="px-2 py-1 rounded-md text-xs font-semibold ${statusColors[task.status]}">${statusLabels[task.status]}</span></td>
+                    <td class="py-3 pr-4"><span class="px-2 py-1 rounded-md text-xs font-semibold uppercase tracking-wider ${priorityColors[task.priority]}">${task.priority}</span></td>
+                    <td class="py-3 text-gray-500 dark:text-gray-400 text-sm">${task.deadline ? new Date(task.deadline).toLocaleDateString() : 'No deadline'}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // --- Kanban Render Logic ---
+        function renderBoard() {
+            statuses.forEach(status => {
+                document.getElementById(`col-${status}`).innerHTML = '';
+                document.getElementById(`count-${status}`).innerText = '0';
+            });
+
+            tasks.forEach((task, index) => {
+                const col = document.getElementById(`col-${task.status}`);
+                if (col) {
+                    const card = createTaskCard(task);
+                    card.style.animationDelay = `${(index % 5) * 50}ms`;
+                    card.classList.add('animate-fade-up');
+                    col.appendChild(card);
+                    
+                    const countEl = document.getElementById(`count-${task.status}`);
+                    countEl.innerText = parseInt(countEl.innerText) + 1;
+                }
+            });
+        }
+
+        function createTaskCard(task) {
+            const card = document.createElement('div');
+            card.className = 'task-card bg-white dark:bg-black p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md hover:border-gray-400 dark:hover:border-gray-500 group flex flex-col gap-3 relative overflow-hidden';
+            card.draggable = true;
+            card.dataset.id = task.id;
+
+            const priorityAccent = task.priority === 'high' ? '<div class="absolute left-0 top-0 bottom-0 w-1 bg-black dark:bg-white"></div>' : '';
+
+            // Monochrome priority badges
+            const priorityColors = {
+                high: 'bg-black dark:bg-white text-white dark:text-black border-black dark:border-white',
+                medium: 'bg-gray-100 dark:bg-gray-800 text-black dark:text-white border-gray-300 dark:border-gray-600',
+                low: 'bg-white dark:bg-black text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700'
+            };
+            const priorityBadge = `<span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${priorityColors[task.priority]}">${task.priority}</span>`;
+
+            let dateHtml = '';
+            if (task.deadline) {
+                const dateObj = new Date(task.deadline);
+                const isOverdue = dateObj < new Date() && task.status !== 'done';
+                dateHtml = `
+                    <div class="flex items-center gap-1.5 text-xs font-medium ${isOverdue ? 'text-white dark:text-black bg-black dark:bg-white px-1.5 py-0.5 rounded' : 'text-gray-500 dark:text-gray-400'}">
+                        <i class="ph-bold ph-calendar-blank"></i>
+                        ${dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </div>
+                `;
+            }
+
+            const currentIndex = statuses.indexOf(task.status);
+            const moveLeftBtn = currentIndex > 0 
+                ? `<button onclick="moveTask('${task.id}', '${statuses[currentIndex - 1]}')" class="p-1.5 text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded md:hidden"><i class="ph-bold ph-caret-left"></i></button>` : '';
+            const moveRightBtn = currentIndex < statuses.length - 1 
+                ? `<button onclick="moveTask('${task.id}', '${statuses[currentIndex + 1]}')" class="p-1.5 text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded md:hidden"><i class="ph-bold ph-caret-right"></i></button>` : '';
+
+            card.innerHTML = `
+                ${priorityAccent}
+                <div class="flex justify-between items-start gap-2 ${task.priority === 'high' ? 'pl-2' : ''}">
+                    ${priorityBadge}
+                    <div class="flex gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onclick="openModal('${task.id}')" class="text-gray-400 hover:text-black dark:hover:text-white p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title="Edit">
+                            <i class="ph-bold ph-pencil-simple"></i>
+                        </button>
+                        <button onclick="deleteTask('${task.id}')" class="text-gray-400 hover:text-black dark:hover:text-white p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title="Delete">
+                            <i class="ph-bold ph-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="${task.priority === 'high' ? 'pl-2' : ''}">
+                    <h3 class="font-semibold text-gray-900 dark:text-gray-100 leading-snug">${escapeHTML(task.title)}</h3>
+                    ${task.desc ? `<p class="text-sm text-gray-500 dark:text-gray-400 mt-1.5 line-clamp-2">${escapeHTML(task.desc)}</p>` : ''}
+                </div>
+                <div class="mt-auto pt-3 flex items-center justify-between border-t border-gray-100 dark:border-gray-800/50 ${task.priority === 'high' ? 'ml-2' : ''}">
+                    ${dateHtml}
+                    <div class="flex gap-1 ml-auto">
+                        ${moveLeftBtn}
+                        ${moveRightBtn}
+                    </div>
+                </div>
+            `;
+
+            card.addEventListener('dragstart', handleDragStart);
+            card.addEventListener('dragend', handleDragEnd);
+
+            return card;
+        }
+
+        // --- Drag & Drop ---
+        let draggedTaskId = null;
+
+        function setupDragAndDrop() {
+            const columns = document.querySelectorAll('.kanban-col-container');
+            
+            columns.forEach(col => {
+                col.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    col.classList.add('drag-over');
+                });
+                col.addEventListener('dragleave', (e) => {
+                    if (!col.contains(e.relatedTarget)) col.classList.remove('drag-over');
+                });
+                col.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    col.classList.remove('drag-over');
+                    const newStatus = col.dataset.status;
+                    if (draggedTaskId) updateTaskStatus(draggedTaskId, newStatus);
+                });
+            });
+        }
+
+        function handleDragStart(e) {
+            draggedTaskId = this.dataset.id;
+            e.dataTransfer.effectAllowed = 'move';
+            if(e.dataTransfer.setData) e.dataTransfer.setData('text/plain', this.dataset.id); 
+            setTimeout(() => this.classList.add('dragging'), 0);
+        }
+
+        function handleDragEnd(e) {
+            this.classList.remove('dragging');
+            draggedTaskId = null;
+            document.querySelectorAll('.kanban-col-container').forEach(c => c.classList.remove('drag-over'));
+        }
+
+        // --- Notification Logic ---
+        function toggleNotifications() {
+            const dropdown = document.getElementById('notif-dropdown');
+            if (dropdown.classList.contains('hidden')) {
+                dropdown.classList.remove('hidden');
+                setTimeout(() => dropdown.classList.remove('opacity-0'), 10);
+                
+                // Mark as read
+                let updated = false;
+                notifications.forEach(n => { if(!n.read) { n.read = true; updated = true; } });
+                if(updated) {
+                    updateNotificationBadge();
+                    renderNotifications();
+                }
+            } else {
+                dropdown.classList.add('opacity-0');
+                setTimeout(() => dropdown.classList.add('hidden'), 300);
+            }
+        }
+
+        function addNotification(text) {
+            notifications.unshift({
+                id: Date.now(),
+                text: text,
+                time: "Just now",
+                read: false
+            });
+            renderNotifications();
+        }
+
+        function renderNotifications() {
+            const list = document.getElementById('notif-list');
+            list.innerHTML = '';
+            
+            if (notifications.length === 0) {
+                list.innerHTML = `<div class="p-4 text-center text-sm text-gray-500 dark:text-gray-400">No new notifications.</div>`;
+            } else {
+                notifications.forEach(n => {
+                    list.innerHTML += `
+                        <div class="p-3 border-b border-gray-100 dark:border-gray-800/50 last:border-0 hover:bg-gray-50 dark:hover:bg-[#151515] rounded-lg transition-colors flex gap-3 items-start">
+                            <div class="mt-1 w-2 h-2 rounded-full shrink-0 ${!n.read ? 'bg-black dark:bg-white' : 'bg-transparent'}"></div>
+                            <div>
+                                <p class="text-sm text-gray-800 dark:text-gray-200 ${!n.read ? 'font-semibold' : ''}">${n.text}</p>
+                                <p class="text-xs text-gray-500 dark:text-gray-500 mt-1">${n.time}</p>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+            updateNotificationBadge();
+        }
+
+        function updateNotificationBadge() {
+            const unreadCount = notifications.filter(n => !n.read).length;
+            const badge = document.getElementById('notif-badge');
+            if (unreadCount > 0) {
+                badge.classList.remove('opacity-0');
+            } else {
+                badge.classList.add('opacity-0');
+            }
+        }
+
+        function clearNotifications() {
+            notifications = [];
+            renderNotifications();
+        }
+
+        // --- Settings Logic ---
+        function loadSettings() {
+            document.getElementById('settings-name').value = userProfile.name;
+            document.getElementById('settings-email').value = userProfile.email;
+            document.getElementById('settings-notif-toggle').checked = userProfile.emailNotifications;
+        }
+
+        function saveSettings() {
+            userProfile.name = document.getElementById('settings-name').value;
+            userProfile.email = document.getElementById('settings-email').value;
+            userProfile.emailNotifications = document.getElementById('settings-notif-toggle').checked;
+
+            // Update UI elements
+            document.getElementById('sidebar-name').innerText = userProfile.name;
+            document.getElementById('sidebar-email').innerText = userProfile.email;
+
+            // Log notification
+            addNotification("Profile settings updated successfully.");
+
+            // Button feedback
+            const btn = document.getElementById('save-settings-btn');
+            const originalText = btn.innerText;
+            btn.innerText = "Saved ✓";
+            
+            setTimeout(() => {
+                btn.innerText = originalText;
+            }, 2000);
+        }
+
+        // --- CRUD Operations ---
+        function updateTaskStatus(id, newStatus) {
+            const task = tasks.find(t => t.id === id);
+            if (task && task.status !== newStatus) {
+                const statusLabels = { 'todo': 'To Do', 'inprogress': 'In Progress', 'done': 'Done' };
+                task.status = newStatus;
+                renderBoard();
+                if(document.getElementById('page-dashboard').classList.contains('block')) renderDashboard();
+                
+                addNotification(`Task "${task.title}" moved to ${statusLabels[newStatus]}.`);
+            }
+        }
+
+        function moveTask(id, newStatus) { updateTaskStatus(id, newStatus); }
+
+        function deleteTask(id) {
+            if (confirm('Are you sure you want to delete this task?')) {
+                const task = tasks.find(t => t.id === id);
+                tasks = tasks.filter(t => t.id !== id);
+                renderBoard();
+                renderDashboard();
+                if (task) addNotification(`Task "${task.title}" deleted.`);
+            }
+        }
+
+        function handleFormSubmit(e) {
+            e.preventDefault();
+            
+            const id = document.getElementById('task-id').value;
+            const title = document.getElementById('task-title').value.trim();
+            const desc = document.getElementById('task-desc').value.trim();
+            const priority = document.getElementById('task-priority').value;
+            const deadline = document.getElementById('task-deadline').value;
+
+            if (!title) return;
+
+            if (id) {
+                const task = tasks.find(t => t.id === id);
+                if (task) {
+                    task.title = title; task.desc = desc; task.priority = priority; task.deadline = deadline;
+                    addNotification(`Task "${title}" updated.`);
+                }
+            } else {
+                tasks.push({
+                    id: Date.now().toString(),
+                    title, desc, priority, deadline, status: 'todo'
+                });
+                addNotification(`New task "${title}" created.`);
+            }
+
+            renderBoard();
+            renderDashboard();
+            closeModal();
+            
+            if(document.getElementById('page-kanban').classList.contains('hidden')) {
+                navigate('kanban');
+            }
+        }
+
+        // --- Modal ---
+        const modal = document.getElementById('task-modal');
+        const modalContent = document.getElementById('task-modal-content');
+        const form = document.getElementById('task-form');
+
+        function openModal(taskId = null) {
+            form.reset();
+            document.getElementById('task-id').value = '';
+            document.getElementById('modal-title').innerText = 'Add New Task';
+            
+            if (taskId) {
+                const task = tasks.find(t => t.id === taskId);
+                if (task) {
+                    document.getElementById('modal-title').innerText = 'Edit Task';
+                    document.getElementById('task-id').value = task.id;
+                    document.getElementById('task-title').value = task.title;
+                    document.getElementById('task-desc').value = task.desc;
+                    document.getElementById('task-priority').value = task.priority;
+                    document.getElementById('task-deadline').value = task.deadline || '';
+                }
+            }
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modalContent.classList.remove('scale-95');
+                modalContent.classList.add('scale-100');
+            }, 10);
+        }
+
+        function closeModal() {
+            modal.classList.add('opacity-0');
+            modalContent.classList.remove('scale-100');
+            modalContent.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }, 300);
+        }
+
+        modalContent.addEventListener('click', (e) => e.stopPropagation());
+        modal.addEventListener('click', closeModal);
+
+        function escapeHTML(str) {
+            return str.replace(/[&<>'"]/g, 
+                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+            );
+        }
+    </script>
+</body>
+</html>
